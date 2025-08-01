@@ -5,12 +5,11 @@ import axios from "axios";
 import io from "socket.io-client";
 import "./css/ChatPage.css";
 
-// ✅ Use single backend URL
 const BASE_URL = "https://chat-backend-aktb.onrender.com";
 
-// ✅ Singleton socket connection
+// ✅ Singleton socket
 const socket = io(BASE_URL, {
-  transports: ['websocket'],
+  transports: ["websocket"],
 });
 
 const ChatPage = () => {
@@ -24,18 +23,18 @@ const ChatPage = () => {
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Scroll to bottom on new message
+  // ✅ Auto-scroll on message update
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✅ Fetch room details and messages
+  // ✅ Fetch room and messages
   useEffect(() => {
     const fetchRoomData = async () => {
       try {
         const [roomRes, msgRes] = await Promise.all([
           axios.get(`${BASE_URL}/api/chatroom`),
-          axios.get(`${BASE_URL}/api/message/${roomId}`)
+          axios.get(`${BASE_URL}/api/message/${roomId}`),
         ]);
 
         const room = roomRes.data.rooms.find((r) => r._id === roomId);
@@ -49,7 +48,7 @@ const ChatPage = () => {
     fetchRoomData();
   }, [roomId]);
 
-  // ✅ Socket connection
+  // ✅ Join room + receive messages
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
@@ -80,19 +79,30 @@ const ChatPage = () => {
       await axios.post(`${BASE_URL}/api/message`, newMsg);
       socket.emit("sendMessage", newMsg);
       setText("");
+
+      // ✅ Keep input focused
+      inputRef.current?.focus();
     } catch (err) {
       console.error("❌ Error sending message:", err);
     }
   }, [text, user.username, roomId]);
 
-  // Send on Enter key
+  // ✅ Send on Enter
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleSend();
+    if (e.key === "Enter") {
+      e.preventDefault(); // avoid form submit
+      handleSend();
+    }
   };
 
-  // Auto-focus input on load
+  // ✅ Always focus input on page load
   useEffect(() => {
-    inputRef.current?.focus();
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -126,8 +136,15 @@ const ChatPage = () => {
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           className="chat-page__input"
+          autoFocus
         />
-        <button onClick={handleSend} className="chat-page__send-btn">
+        <button
+          onClick={(e) => {
+            e.preventDefault(); // avoid blur on mobile
+            handleSend();
+          }}
+          className="chat-page__send-btn"
+        >
           Send
         </button>
       </div>
