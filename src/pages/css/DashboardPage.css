@@ -1,0 +1,108 @@
+/* DashboardPage.css */
+
+.dashboard-container {
+  max-width: 800px;
+  /* margin: 2rem auto; */
+  padding: 1rem;
+  background-color: #161618; /* Dark charcoal */
+  color: #abb2bf; /* Soft gray text */
+  font-family: 'Inter', sans-serif;
+  border-radius: 12px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+}
+
+.dashboard-welcome {
+  font-weight: 600;
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  color: #e0e0e0;
+  text-align: center;
+}
+
+.dashboard-create-box {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 2rem;
+}
+
+.dashboard-input {
+  flex: 1;
+  padding: 10px;
+  font-size: 1rem;
+  border-radius: 25px;
+  border: 1px solid #4b5263;
+  background-color: #282c34;
+  color: #abb2bf;
+  outline: none;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.dashboard-input::placeholder {
+  color: #5c6370;
+}
+
+.dashboard-input:focus {
+  border-color: #61afef;
+  box-shadow: 0 0 0 2px rgba(97,175,239,0.25);
+}
+
+.dashboard-button {
+  padding: 12px 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: #61afef;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.2s;
+}
+
+.dashboard-button:hover {
+  background-color: #4b88d3;
+  transform: translateY(-1px);
+}
+
+.dashboard-button:active {
+  transform: translateY(1px);
+}
+
+.dashboard-subtitle {
+  font-size: 1.3rem;
+  margin-bottom: 1rem;
+  color: #e0e0e0;
+  border-bottom: 1px solid #3e4451;
+  padding-bottom: 8px;
+}
+
+.dashboard-room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dashboard-room-card {
+  background-color: #21252b;
+  padding: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  cursor: pointer;
+  color: #abb2bf;
+  transition: background-color 0.3s;
+}
+
+.dashboard-room-card:hover {
+  background-color: #2c313a;
+}
+
+.dashboard-room-name {
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin-bottom: 0.3rem;
+  color: #61afef;
+}
+
+.dashboard-room-date {
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
