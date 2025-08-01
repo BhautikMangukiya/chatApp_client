@@ -9,7 +9,9 @@ import "./css/ChatPage.css";
 const BASE_URL = "https://chat-backend-aktb.onrender.com";
 
 // ✅ Singleton socket connection
-const socket = io(BASE_URL, { autoConnect: false });
+const socket = io(BASE_URL, {
+  transports: ['websocket'],
+});
 
 const ChatPage = () => {
   const { user } = useAuth();
