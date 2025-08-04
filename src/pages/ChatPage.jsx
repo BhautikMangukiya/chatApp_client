@@ -1,50 +1,34 @@
-// ChatPage.jsx
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import io from "socket.io-client";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
 import "./css/ChatPage.css";
 
-dayjs.extend(relativeTime);
-
 const BASE_URL = "https://chatapp-backend-hfpn.onrender.com";
-let socket;
+
+// ✅ Singleton socket
+const socket = io(BASE_URL, {
+  transports: ["websocket"],
+});
 
 const ChatPage = () => {
   const { user } = useAuth();
   const { roomId } = useParams();
+  const navigate = useNavigate();
+
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [roomName, setRoomName] = useState("Loading...");
-  const [replyTo, setReplyTo] = useState(null);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
+  // ✅ Auto-scroll on message update
   useEffect(() => {
-    socket = io(BASE_URL, {
-      transports: ["websocket"],
-      autoConnect: true,
-    });
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
-    socket.emit("joinRoom", roomId);
-
-    socket.on("receiveMessage", (msg) => {
-      setMessages((prev) => {
-        if (!prev.some((m) => m._id === msg._id)) {
-          return [...prev, msg];
-        }
-        return prev;
-      });
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, [roomId]);
-
+  // ✅ Fetch room and messages
   useEffect(() => {
     const fetchRoomData = async () => {
       try {
@@ -52,117 +36,115 @@ const ChatPage = () => {
           axios.get(`${BASE_URL}/api/chatroom`),
           axios.get(`${BASE_URL}/api/message/${roomId}`),
         ]);
+
         const room = roomRes.data.rooms.find((r) => r._id === roomId);
         setRoomName(room?.name || "Chat Room");
         setMessages(msgRes.data.messages || []);
       } catch (error) {
-        console.error("Error loading chat room:", error);
+        console.error("❌ Error loading chat room:", error);
       }
     };
+
     fetchRoomData();
   }, [roomId]);
 
+  // ✅ Join room + receive messages
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!socket.connected) socket.connect();
 
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
+    socket.emit("joinRoom", roomId);
 
-    const tempId = Date.now().toString();
-    const tempMsg = {
-      tempId,
-      roomId,
-      sender: user.username,
-      text: trimmed,
-      replyTo,
-      timestamp: new Date().toISOString(),
-      status: "sending",
+    const handleReceiveMessage = (data) => {
+      setMessages((prev) => [...prev, data]);
     };
 
-    setMessages((prev) => [...prev, tempMsg]);
-    setText("");
-    setReplyTo(null);
-    inputRef.current?.focus();
+    socket.on("receiveMessage", handleReceiveMessage);
+
+    return () => {
+      socket.off("receiveMessage", handleReceiveMessage);
+    };
+  }, [roomId]);
+
+  // ✅ Send message
+  const handleSend = useCallback(async () => {
+    if (!text.trim()) return;
+
+    const newMsg = {
+      roomId,
+      sender: user.username,
+      text: text.trim(),
+    };
 
     try {
-      const { data } = await axios.post(`${BASE_URL}/api/message`, {
-        roomId,
-        sender: user.username,
-        text: trimmed,
-        replyTo,
-      });
+      await axios.post(`${BASE_URL}/api/message`, newMsg);
+      socket.emit("sendMessage", newMsg);
+      setText("");
 
-      socket.emit("sendMessage", data); // Emit after successful save
-
-      setMessages((prev) =>
-        prev.map((m) => (m.tempId === tempId ? { ...data, status: "sent" } : m))
-      );
+      // ✅ Keep input focused
+      inputRef.current?.focus();
     } catch (err) {
-      console.error("Send error:", err.message);
-      setMessages((prev) =>
-        prev.map((m) => (m.tempId === tempId ? { ...m, status: "failed" } : m))
-      );
+      console.error("❌ Error sending message:", err);
     }
-  }, [text, replyTo, roomId, user.username]);
+  }, [text, user.username, roomId]);
 
+  // ✅ Send on Enter
   const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
+    if (e.key === "Enter") {
+      e.preventDefault(); // avoid form submit
       handleSend();
     }
   };
 
+  // ✅ Always focus input on page load
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      inputRef.current?.focus();
+      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="chat-page">
       <div className="nav">
-        <h2>{roomName}</h2>
+        <h2 className="chat-page__header">{roomName}</h2>
       </div>
+
       <div className="chat-page__chat-box">
-        {messages.map((msg) => (
+        {messages.map((msg, index) => (
           <div
-            key={msg._id || msg.tempId}
+            key={index}
             className={`chat-page__message ${
-              msg.sender === user.username ? "chat-page__message--own" : "chat-page__message--other"
-            } ${msg.status === "failed" ? "chat-page__message--error" : ""}`}
-            onDoubleClick={() => setReplyTo(msg)}
+              msg.sender === user.username
+                ? "chat-page__message--own"
+                : "chat-page__message--other"
+            }`}
           >
-            {msg.replyTo && (
-              <div className="chat-page__message-reply">
-                Replying to: {msg.replyTo.text.slice(0, 30)}
-              </div>
-            )}
             <div className="chat-page__message-text">{msg.text}</div>
-            <div className="chat-page__message-meta">
-              <span>{dayjs(msg.timestamp).format("HH:mm")}</span>
-              {msg.status === "sending" && <span> ⏳</span>}
-              {msg.status === "sent" && <span> ✅</span>}
-              {msg.status === "failed" && <span> ❌</span>}
-            </div>
           </div>
         ))}
         <div ref={chatEndRef} />
       </div>
 
-      {replyTo && (
-        <div className="chat-page__reply-preview">
-          Replying to: {replyTo.text.slice(0, 40)}
-          <button onClick={() => setReplyTo(null)}>x</button>
-        </div>
-      )}
-
       <div className="chat-page__input-area">
-        <textarea
+        <input
           ref={inputRef}
+          type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
-          rows={1}
           className="chat-page__input"
+          autoFocus
         />
-        <button onClick={handleSend} disabled={!text.trim()} className="chat-page__send-btn">
+        <button
+          onClick={(e) => {
+            e.preventDefault(); // avoid blur on mobile
+            handleSend();
+          }}
+          className="chat-page__send-btn"
+        >
           Send
         </button>
       </div>
