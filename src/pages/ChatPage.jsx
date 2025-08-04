@@ -3,7 +3,11 @@ import { useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import axios from "axios";
 import io from "socket.io-client";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
 import "./css/ChatPage.css";
+
+dayjs.extend(relativeTime);
 
 const BASE_URL = "https://chatapp-backend-hfpn.onrender.com";
 
@@ -18,15 +22,14 @@ const ChatPage = () => {
   const [messages, setMessages] = useState([]);
   const [text, setText] = useState("");
   const [roomName, setRoomName] = useState("Loading...");
+  const [replyTo, setReplyTo] = useState(null);
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Auto-scroll to bottom when messages change
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Fetch room data and messages
   useEffect(() => {
     const fetchRoomData = async () => {
       try {
@@ -46,25 +49,14 @@ const ChatPage = () => {
     fetchRoomData();
   }, [roomId]);
 
-  // Socket.io connection and message handling
   useEffect(() => {
-    if (!socket.connected) {
-      socket.connect();
-    }
+    if (!socket.connected) socket.connect();
 
     socket.emit("joinRoom", roomId);
 
     const handleReceiveMessage = (data) => {
-      // Replace optimistic update with confirmed message
-      setMessages(prev => prev.map(m => 
-        m.tempId && m.sender === data.sender && m.text === data.text 
-          ? data 
-          : m
-      ).filter(m => !m.tempId || m.sender !== data.sender || m.text !== data.text));
-      
-      // Add new message if not already present
       setMessages(prev => {
-        if (!prev.some(m => m._id === data._id || (m.tempId && m.text === data.text && m.sender === data.sender))) {
+        if (!prev.some(m => m._id === data._id)) {
           return [...prev, data];
         }
         return prev;
@@ -73,60 +65,50 @@ const ChatPage = () => {
 
     socket.on("receiveMessage", handleReceiveMessage);
 
-    return () => {
-      socket.off("receiveMessage", handleReceiveMessage);
-    };
+    return () => socket.off("receiveMessage", handleReceiveMessage);
   }, [roomId]);
 
-  // Optimistic message sending
   const handleSend = useCallback(async () => {
     const messageText = text.trim();
     if (!messageText) return;
 
-    // Create optimistic message
     const tempId = Date.now().toString();
     const newMsg = {
       tempId,
       roomId,
       sender: user.username,
       text: messageText,
-      timestamp: new Date().toISOString()
+      replyTo,
+      timestamp: new Date().toISOString(),
+      status: "sending"
     };
 
-    // Add immediately to UI
     setMessages(prev => [...prev, newMsg]);
     setText("");
-    
-    // Keep input focused
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
+    setReplyTo(null);
+    inputRef.current?.focus();
 
     try {
-      // Send to server
       const { data } = await axios.post(`${BASE_URL}/api/message`, {
         roomId,
         sender: user.username,
-        text: messageText
+        text: messageText,
+        replyTo
       });
-      
-      // Emit via socket
+
       socket.emit("sendMessage", data);
-      
-      // Update message with server data
-      setMessages(prev => prev.map(m => 
-        m.tempId === tempId ? { ...data, isPending: false } : m
+
+      setMessages(prev => prev.map(m =>
+        m.tempId === tempId ? { ...data, status: "sent" } : m
       ));
     } catch (err) {
       console.error("Error sending message:", err);
-      // Mark as failed
-      setMessages(prev => prev.map(m => 
-        m.tempId === tempId ? { ...m, isPending: "failed" } : m
+      setMessages(prev => prev.map(m =>
+        m.tempId === tempId ? { ...m, status: "failed" } : m
       ));
     }
-  }, [text, user.username, roomId]);
+  }, [text, user.username, roomId, replyTo]);
 
-  // Handle Enter key
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -134,14 +116,7 @@ const ChatPage = () => {
     }
   };
 
-  // Focus input on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      inputRef.current?.focus();
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
+  const handleReply = (msg) => setReplyTo(msg);
 
   return (
     <div className="chat-page">
@@ -154,31 +129,43 @@ const ChatPage = () => {
           <div
             key={msg._id || msg.tempId}
             className={`chat-page__message ${
-              msg.sender === user.username
-                ? "chat-page__message--own"
-                : "chat-page__message--other"
-            } ${msg.isPending ? "chat-page__message--pending" : ""}`}
+              msg.sender === user.username ? "chat-page__message--own" : "chat-page__message--other"
+            } ${msg.status === "failed" ? "chat-page__message--error" : ""}`}
+            onDoubleClick={() => handleReply(msg)}
           >
-            <div className="chat-page__message-text">{msg.text}</div>
-            {msg.isPending === "failed" && (
-              <div className="chat-page__message-error">Failed to send</div>
+            {msg.replyTo && (
+              <div className="chat-page__message-reply">
+                Replying to: {msg.replyTo.text.slice(0, 30)}
+              </div>
             )}
+            <div className="chat-page__message-text">{msg.text}</div>
+            <div className="chat-page__message-meta">
+              <span>{dayjs(msg.timestamp).format("HH:mm")}</span>
+              {msg.status === "sending" && <span> ⏳</span>}
+              {msg.status === "sent" && <span> ✅</span>}
+              {msg.status === "failed" && <span> ❌</span>}
+            </div>
           </div>
         ))}
         <div ref={chatEndRef} />
       </div>
 
+      {replyTo && (
+        <div className="chat-page__reply-preview">
+          Replying to: {replyTo.text.slice(0, 40)}
+          <button onClick={() => setReplyTo(null)}>x</button>
+        </div>
+      )}
+
       <div className="chat-page__input-area">
-        <input
+        <textarea
           ref={inputRef}
-          type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           className="chat-page__input"
-          autoFocus
-          enterKeyHint="send"
+          rows={1}
         />
         <button
           onClick={(e) => {
