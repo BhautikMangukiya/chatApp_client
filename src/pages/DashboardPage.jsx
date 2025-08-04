@@ -1,75 +1,89 @@
-import { useEffect, useState } from 'react';
-import axios from 'axios';
-import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import './css/DashboardPage.css';
+const express = require("express");
+const http = require("http");
+const mongoose = require("mongoose");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const { Server } = require("socket.io");
+const path = require("path");
 
-const DashboardPage = () => {
-  const { user } = useAuth();
-  const [roomName, setRoomName] = useState('');
-  const [chatrooms, setChatrooms] = useState([]);
-  const navigate = useNavigate();
+// Load environment variables from .env
+dotenv.config();
 
-  const BASE_URL = 'https://chat-backend-aktb.onrender.com';
+// App setup
+const app = express();
+const server = http.createServer(app);
 
-  const fetchChatrooms = async () => {
-    const res = await axios.get(`${BASE_URL}/api/chatroom`);
-    if (res.data.success) setChatrooms(res.data.rooms);
-  };
+// CORS setup (only allow your Vercel frontend URLs)
+const allowedOrigins = [
+  "https://chat-app-client-beryl-five.vercel.app",
+  "https://chat-app-client-git-main-bhautiks-projects-e9693610.vercel.app",
+  "https://chat-app-client-cnvz786wy-bhautiks-projects-e9693610.vercel.app",
+  "https://chat-app-client-76n2gfh2c-bhautiks-projects-e9693610.vercel.app"
+];
 
-  useEffect(() => {
-    fetchChatrooms();
-  }, []);
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 
-const handleCreate = async () => {
-  if (!roomName.trim()) return;
+app.use(express.json());
 
-  try {
-    await axios.post(`${BASE_URL}/api/chatroom/create`, {
-      name: roomName
-    });
+// MongoDB connection
+mongoose.connect(process.env.MONGO_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log("✅ MongoDB connected"))
+.catch(err => console.error("❌ MongoDB connection error:", err));
 
-    setRoomName('');
-    fetchChatrooms();
-  } catch (error) {
-    console.error("❌ Chatroom creation error:", error.response?.data || error.message);
-    alert("Failed to create chatroom");
+// Routes
+const authRoutes = require("./routes/auth.routes");
+const chatroomRoutes = require("./routes/chatroom.routes");
+const messageRoutes = require("./routes/message.routes");
+
+app.use("/api/auth", authRoutes);
+app.use("/api/chatroom", chatroomRoutes);
+app.use("/api/message", messageRoutes);
+
+// Socket.IO setup
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST"]
   }
-};
+});
 
+// Socket.IO connection
+io.on("connection", (socket) => {
+  console.log("🟢 New client connected:", socket.id);
 
-  return (
-    <div className="dashboard-container">
-      <h2 className="dashboard-welcome">Welcome, {user.username} 👋</h2>
+  socket.on("joinRoom", (roomId) => {
+    socket.join(roomId);
+    console.log(`📦 User ${socket.id} joined room ${roomId}`);
+  });
 
-      <div className="dashboard-create-box">
-        <input
-          type="text"
-          placeholder="Enter chatroom name"
-          value={roomName}
-          onChange={(e) => setRoomName(e.target.value)}
-          className="dashboard-input"
-        />
-        <button onClick={handleCreate} className="dashboard-button">
-          Create Chatroom
-        </button>
-      </div>
+  socket.on("sendMessage", (data) => {
+    io.to(data.roomId).emit("receiveMessage", data);
+  });
 
-      <h3 className="dashboard-subtitle">Available Chatrooms:</h3>
-      <div className="dashboard-room-list">
-        {chatrooms.map(room => (
-          <div
-            key={room._id}
-            className="dashboard-room-card"
-            onClick={() => navigate(`/chat/${room._id}`)}
-          >
-            <p className="dashboard-room-name">{room.name}</p>
-            <span className="dashboard-room-date">{new Date(room.createdAt).toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+  socket.on("disconnect", () => {
+    console.log("🔴 Client disconnected:", socket.id);
+  });
+});
 
-export default DashboardPage;
+// Default route for health check
+app.get("/", (req, res) => {
+  res.send("🚀 Chat App Backend Running...");
+});
+
+// Start server
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+});
