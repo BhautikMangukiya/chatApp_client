@@ -10,7 +10,7 @@ const DashboardPage = () => {
   const [chatrooms, setChatrooms] = useState([]);
   const navigate = useNavigate();
 
-  const BASE_URL = 'https://chatapp-backend-hfpn.onrender.com';
+  const BASE_URL = 'https://chat-backend-aktb.onrender.com';
 
   const fetchChatrooms = async () => {
     const res = await axios.get(`${BASE_URL}/api/chatroom`);

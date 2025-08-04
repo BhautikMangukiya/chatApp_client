@@ -6,7 +6,7 @@ import './css/LoginPage.css';
 
 // ✅ Use correct backend URL (fallbacks included)
 const BASE_URL =
-  import.meta.env.VITE_BACKEND_URL || "https://chatapp-backend-hfpn.onrender.com";
+  import.meta.env.VITE_BACKEND_URL || "https://chat-backend-aktb.onrender.com";
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
