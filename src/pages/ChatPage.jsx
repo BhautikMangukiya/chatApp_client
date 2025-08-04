@@ -7,10 +7,8 @@ import "./css/ChatPage.css";
 
 const BASE_URL = "https://chatapp-backend-hfpn.onrender.com";
 
-// ✅ Singleton socket
-const socket = io(BASE_URL, {
-  transports: ["websocket"],
-});
+// Singleton socket connection
+const socket = io(BASE_URL, { transports: ["websocket"], autoConnect: false });
 
 const ChatPage = () => {
   const { user } = useAuth();
@@ -23,87 +21,92 @@ const ChatPage = () => {
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
 
-  // ✅ Auto-scroll on message update
-  useEffect(() => {
+  // Auto-scroll
+  const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  };
 
-  // ✅ Fetch room and messages
+  // Fetch room & messages
   useEffect(() => {
-    const fetchRoomData = async () => {
+    const fetchData = async () => {
       try {
-        const [roomRes, msgRes] = await Promise.all([
+        const [roomsRes, messagesRes] = await Promise.all([
           axios.get(`${BASE_URL}/api/chatroom`),
           axios.get(`${BASE_URL}/api/message/${roomId}`),
         ]);
 
-        const room = roomRes.data.rooms.find((r) => r._id === roomId);
-        setRoomName(room?.name || "Chat Room");
-        setMessages(msgRes.data.messages || []);
+        const room = roomsRes.data.rooms.find((r) => r._id === roomId);
+        if (!room) {
+          navigate("/"); // Redirect if room not found
+          return;
+        }
+
+        setRoomName(room.name);
+        setMessages(messagesRes.data.messages || []);
       } catch (error) {
         console.error("❌ Error loading chat room:", error);
       }
     };
 
-    fetchRoomData();
-  }, [roomId]);
+    fetchData();
+  }, [roomId, navigate]);
 
-  // ✅ Join room + receive messages
+  // Join room & listen for new messages
   useEffect(() => {
     if (!socket.connected) socket.connect();
 
     socket.emit("joinRoom", roomId);
 
-    const handleReceiveMessage = (data) => {
-      setMessages((prev) => [...prev, data]);
+    const handleNewMessage = (msg) => {
+      setMessages((prev) => [...prev, msg]);
     };
 
-    socket.on("receiveMessage", handleReceiveMessage);
+    socket.on("receiveMessage", handleNewMessage);
 
     return () => {
-      socket.off("receiveMessage", handleReceiveMessage);
+      socket.off("receiveMessage", handleNewMessage);
     };
   }, [roomId]);
 
-  // ✅ Send message
+  // Send message
   const handleSend = useCallback(async () => {
     if (!text.trim()) return;
 
-    const newMsg = {
+    const newMessage = {
       roomId,
       sender: user.username,
       text: text.trim(),
     };
 
     try {
-      await axios.post(`${BASE_URL}/api/message`, newMsg);
-      socket.emit("sendMessage", newMsg);
+      await axios.post(`${BASE_URL}/api/message`, newMessage);
+      socket.emit("sendMessage", newMessage);
       setText("");
-
-      // ✅ Keep input focused
       inputRef.current?.focus();
     } catch (err) {
       console.error("❌ Error sending message:", err);
     }
   }, [text, user.username, roomId]);
 
-  // ✅ Send on Enter
+  // Send on Enter key
   const handleKeyDown = (e) => {
     if (e.key === "Enter") {
-      e.preventDefault(); // avoid form submit
+      e.preventDefault();
       handleSend();
     }
   };
 
-  // ✅ Always focus input on page load
+  // Always focus input on mount
   useEffect(() => {
-    const timer = setTimeout(() => {
+    setTimeout(() => {
       inputRef.current?.focus();
-      inputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 300);
-
-    return () => clearTimeout(timer);
   }, []);
+
+  // Scroll on message update
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   return (
     <div className="chat-page">
@@ -112,9 +115,9 @@ const ChatPage = () => {
       </div>
 
       <div className="chat-page__chat-box">
-        {messages.map((msg, index) => (
+        {messages.map((msg, idx) => (
           <div
-            key={index}
+            key={idx}
             className={`chat-page__message ${
               msg.sender === user.username
                 ? "chat-page__message--own"
@@ -136,11 +139,10 @@ const ChatPage = () => {
           onKeyDown={handleKeyDown}
           placeholder="Type a message..."
           className="chat-page__input"
-          autoFocus
         />
         <button
           onClick={(e) => {
-            e.preventDefault(); // avoid blur on mobile
+            e.preventDefault();
             handleSend();
           }}
           className="chat-page__send-btn"
