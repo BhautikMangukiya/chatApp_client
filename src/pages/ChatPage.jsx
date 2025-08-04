@@ -5,7 +5,7 @@ import axios from "axios";
 import io from "socket.io-client";
 import "./css/ChatPage.css";
 
-const BASE_URL = "https://chat-backend-aktb.onrender.com";
+const BASE_URL = "https://chatapp-backend-hfpn.onrender.com";
 
 // ✅ Singleton socket
 const socket = io(BASE_URL, {
