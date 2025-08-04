@@ -21,16 +21,22 @@ const DashboardPage = () => {
     fetchChatrooms();
   }, []);
 
-  const handleCreate = async () => {
-    if (!roomName.trim()) return;
+const handleCreate = async () => {
+  if (!roomName.trim()) return;
 
+  try {
     await axios.post(`${BASE_URL}/api/chatroom/create`, {
       name: roomName
     });
 
     setRoomName('');
     fetchChatrooms();
-  };
+  } catch (error) {
+    console.error("❌ Chatroom creation error:", error.response?.data || error.message);
+    alert("Failed to create chatroom");
+  }
+};
+
 
   return (
     <div className="dashboard-container">

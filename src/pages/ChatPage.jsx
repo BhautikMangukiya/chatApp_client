@@ -10,6 +10,7 @@ const BASE_URL = "https://chat-backend-aktb.onrender.com";
 // ✅ Singleton socket
 const socket = io(BASE_URL, {
   transports: ["websocket"],
+  withCredentials: true
 });
 
 const ChatPage = () => {
