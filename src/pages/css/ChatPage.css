@@ -171,3 +171,21 @@ body, html, #root {
 }
 
 
+
+
+.chat-page__input {
+  flex: 1;
+  padding: 12px;
+  font-size: 1rem;
+  background-color: #282c34;
+  color: #abb2bf;
+  border: 1px solid #4b5263;
+  border-radius: 25px;
+  margin-right: 10px;
+  outline: none;
+  resize: none; /* Prevent manual resize */
+  line-height: 1.5;
+  max-height: 150px; /* Max height before scroll */
+  overflow-y: auto;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}

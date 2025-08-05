@@ -106,6 +106,15 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+  const textarea = inputRef.current;
+  if (textarea) {
+    textarea.style.height = "auto"; // Reset height
+    textarea.style.height = textarea.scrollHeight + "px"; // Adjust to content
+  }
+}, [text]);
+
+
   return (
     <div className="chat-page">
       <div className="nav">
@@ -129,16 +138,16 @@ const ChatPage = () => {
       </div>
 
       <div className="chat-page__input-area">
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
-          className="chat-page__input"
-          autoFocus
-        />
+<textarea
+  ref={inputRef}
+  value={text}
+  onChange={(e) => setText(e.target.value)}
+  onKeyDown={handleKeyDown}
+  placeholder="Type a message..."
+  className="chat-page__input"
+  rows={1}
+/>
+
         <button
           onClick={(e) => {
             e.preventDefault(); // avoid blur on mobile
